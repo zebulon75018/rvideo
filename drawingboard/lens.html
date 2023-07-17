@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fabric.js Example with Magnifying Lens</title>
+    <script src="js/fabric.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fabric.js Example with Magnifying Lens</h1>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script>
+        var canvas = new fabric.Canvas('canvas');
+
+        // Load background image
+        var backgroundImage = 'https://www.codeproject.com/KB/Articles/1165426/ImageMagnifierEffect.png';  // Replace with your own image path
+        fabric.Image.fromURL(backgroundImage, function(img) {
+            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+                //scaleX: canvas.width / img.width,
+                //scaleY: canvas.height / img.height
+            });
+        });
+
+        // Custom object for magnifying lens
+        var MagnifyingLens = fabric.util.createClass(fabric.Rect, {
+            type: 'magnifying-lens',
+            initialize: function(options) {
+                options || (options = {});
+                this.callSuper('initialize', options);
+                this.set({
+                    width: options.width || 100,
+                    height: options.height || 100,
+                    //scaleX: options.scaleX || 2,
+                    //scaleY: options.scaleY || 2,
+                    fill: 'rgba(0,0,0,0.0)',
+                    selectable: false,
+                    evented: false
+                });
+            },
+            render: function(ctx) {
+                this.callSuper('render', ctx);
+                // Render magnified background image
+                if (canvas.backgroundImage) {
+                    ctx.save();
+                    ctx.globalAlpha = 1; // 0.8;
+                    ctx.drawImage(
+                        canvas.backgroundImage._element,
+                        //this.left - this.width / 2,
+                        //this.top - this.height / 2,
+                        this.left ,
+                        this.top ,
+                        this.width,
+                        this.height,
+                        this.left-this.width / 2,
+                        this.top- this.height / 2,
+                        this.width * this.scaleX,
+                        this.height * this.scaleY
+                    );
+                    ctx.restore();
+                }
+            }
+        });
+
+        // Create a movable magnifying lens
+        var lens = new MagnifyingLens({
+            left: 100,
+            top: 100,
+            width: 100,
+            height: 100,
+            scaleX: 2,
+            scaleY: 2,
+            selectable: false,
+            evented: false
+        });
+        canvas.add(lens);
+
+        // Update lens position based on mouse movement
+        canvas.on('mouse:move', function(options) {
+            if (options.target !== lens) {
+                lens.set({ left: options.absolutePointer.x, top: options.absolutePointer.y });
+                canvas.renderAll();
+            }
+        });
+    </script>
+</body>
+</html>
+

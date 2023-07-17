@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>drawingboard/index.html</file>
+        <file>image/tools-28.png</file>
+    </qresource>
+</RCC>
