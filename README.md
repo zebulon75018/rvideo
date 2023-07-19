@@ -12,5 +12,5 @@ and webengine.
 qmake  rvideo.pro
 
 dependency : libqt5webkit5-dev
-libopencv-dev 
+libopencv-core4.5d 
 ![Image](rvideo.png)
