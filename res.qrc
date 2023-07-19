@@ -1,6 +1,9 @@
 <RCC>
     <qresource prefix="/">
         <file>drawingboard/index.html</file>
+        <file>drawingboard/js/jquery.min.js</file>
+        <file>drawingboard/js/fabric.min.js</file>
+        <file>drawingboard/js/vanilla-picker.js</file>
         <file>image/tools-28.png</file>
     </qresource>
 </RCC>
