@@ -1,5 +1,5 @@
 # rvideo
-A qt application for compare and annotate video....
+A qt application to compare and annotate video...
 
 #dependency 
 LIBS+= -lopencv_core -lopencv_imgproc  -lopencv_videoio
@@ -12,5 +12,5 @@ and webengine.
 qmake  rvideo.pro
 
 dependency : libqt5webkit5-dev
-
+libopencv-dev 
 ![Image](rvideo.png)
