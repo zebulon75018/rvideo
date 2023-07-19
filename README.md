@@ -9,7 +9,8 @@ and webengine.
 
 # compil
 
-qtcreate rvideo.pro
+qmake  rvideo.pro
 
+dependency : libqt5webkit5-dev
 
 ![Image](rvideo.png)
