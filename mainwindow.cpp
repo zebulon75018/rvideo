@@ -86,6 +86,8 @@ void MainWindow::initToolbox()
     QIcon qZoomOriginal = QIcon::fromTheme("zoom-original");
      // Create the actions
      QAction* playAction = createAction2(QStyle::StandardPixmap::SP_MediaPlay, "Play", "Play the media");
+     playAction->setShortcut(QKeySequence(Qt::Key_Space));
+
      QAction* rewindAction = createAction2(QStyle::StandardPixmap::SP_MediaPause , "Pause", "Pause the media");
      QAction* nextAction = createAction2(QStyle::StandardPixmap::SP_MediaSeekForward, "Next", "Play the next media");
      QAction* previousAction = createAction2(QStyle::StandardPixmap::SP_MediaSeekBackward, "Previous", "Play the previous media");
