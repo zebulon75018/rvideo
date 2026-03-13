@@ -2,6 +2,7 @@
 
 A cross-platform **Qt/C++ audio & video analysis tool** featuring real-time spectrogram, frequency spectrum, and waveform visualizations — with full video playback support and an interactive draggable timeline.
 
+![ScreenShot](https://github.com/zebulon75018/rvideo/blob/main/VIBECLAUDEPLAYER/scvreenshot.png?raw=true)
 ---
 
 ## ✨ Features
