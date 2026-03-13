@@ -4,6 +4,7 @@
 #include <QString>
 
 #include "SpectrogramWidget.h"
+#include "PreferencesDialog.h"
 
 class AudioDecoder;
 class AudioPlayer;
@@ -17,27 +18,13 @@ class QSplitter;
 /**
  * MainWindow
  * ----------
- * Main test application.
+ * Main application window.
  *
- * Layout (when a video file is loaded):
- *
- *   ┌─────────────────────────────────────────┐
- *   │  top bar  (file name | mode switcher)   │
- *   ├───────────────────┬─────────────────────┤
- *   │  VideoPlayerWidget│                     │
- *   │  (video frames)   │  SpectrogramWidget  │
- *   │                   │  (spectrogram /     │
- *   │                   │   frequency /       │
- *   │                   │   amplitude)        │
- *   │                   │  ┌─────────────────┐│
- *   │                   │  │thumbnail strip  ││
- *   │                   │  └─────────────────┘│
- *   ├───────────────────┴─────────────────────┤
- *   │  transport  ▶ ⏸ ■   time label         │
- *   └─────────────────────────────────────────┘
- *
- * When an audio-only file is loaded the VideoPlayerWidget is hidden
- * and the QSplitter collapses to a single column.
+ * New features:
+ *   • loadFile(path)         — public, used by main() for CLI argument
+ *   • keyPressEvent          — ← / → move playhead by arrowStepSec
+ *                              Space = play/pause,  Escape = stop
+ *   • Fichier > Préférences  — opens PreferencesDialog
  */
 class MainWindow : public QMainWindow
 {
@@ -46,6 +33,12 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+
+    /** Load a file programmatically (e.g. from command-line argument). */
+    void loadFile(const QString &path);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
     void onLoadFile();
@@ -63,6 +56,7 @@ private slots:
     void onModeFreq();
     void onModeAmp();
     void onToggleLogLin();
+    void onOpenPreferences();
 
 private:
     void setupUi();
@@ -71,6 +65,8 @@ private:
     void updateTransportButtons();
     void updateModeButtons();
     void updateVideoFrame(double seconds);
+    void seekBy(double deltaSec);       ///< relative seek (arrow keys)
+    void applyPreferences();            ///< re-read QSettings and push to widgets
     QString formatTime(double seconds) const;
     static QString segBtnStyle(bool active, const QString &accent = "#5b8dee");
 
@@ -80,8 +76,8 @@ private:
     VideoDecoder      *m_videoDecoder = nullptr;
 
     // ── Widgets ───────────────────────────────────────────────────────────────
-    QSplitter         *m_splitter         = nullptr;
-    VideoPlayerWidget *m_videoPlayer      = nullptr;
+    QSplitter         *m_splitter          = nullptr;
+    VideoPlayerWidget *m_videoPlayer       = nullptr;
     SpectrogramWidget *m_spectrogramWidget = nullptr;
 
     // Transport

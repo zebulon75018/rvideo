@@ -52,6 +52,7 @@ set(SOURCES
     MainWindow.cpp
     VideoDecoder.cpp
     VideoPlayerWidget.cpp
+    PreferencesDialog.cpp
 )
 
 set(HEADERS
@@ -61,6 +62,7 @@ set(HEADERS
     MainWindow.h
     VideoDecoder.h
     VideoPlayerWidget.h
+    PreferencesDialog.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

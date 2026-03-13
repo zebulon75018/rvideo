@@ -20,7 +20,10 @@
 #include <QApplication>
 #include <QSplitter>
 #include <QtConcurrent/QtConcurrent>
+#include <QKeyEvent>
+#include <QDebug>
 #include <cmath>
+#include "PreferencesDialog.h"
 
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -109,11 +112,15 @@ void MainWindow::setupUi()
         topBar->addSpacing(6);
         topBar->addWidget(m_btnLogLin);
 
+        m_btnModeSpectro->setFocusPolicy(Qt::NoFocus);
+        m_btnModeFreq->setFocusPolicy(Qt::NoFocus);
+        m_btnModeAmp->setFocusPolicy(Qt::NoFocus);
+        m_btnLogLin->setFocusPolicy(Qt::NoFocus);
+
         root->addLayout(topBar);
     }
 
     // ── Main area: video player (left) + spectrogram (right) via splitter ─────
-    //m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter = new QSplitter(Qt::Vertical, this);
     m_splitter->setStyleSheet(
         "QSplitter::handle { background: #252530; width: 4px; }");
@@ -169,6 +176,10 @@ void MainWindow::setupUi()
         m_btnPause = mkBtn("⏸", "#e8c040");
         m_btnStop  = mkBtn("■", "#e84040");
 
+
+        m_btnPlay ->setFocusPolicy(Qt::NoFocus);
+        m_btnPause->setFocusPolicy(Qt::NoFocus);
+        m_btnStop->setFocusPolicy(Qt::NoFocus);
         transport->addWidget(m_btnPlay);
         transport->addWidget(m_btnPause);
         transport->addWidget(m_btnStop);
@@ -201,6 +212,11 @@ void MainWindow::setupMenuBar()
     openAct->setShortcut(QKeySequence::Open);
     connect(openAct, &QAction::triggered, this, &MainWindow::onLoadFile);
     fileMenu->addAction(openAct);
+    fileMenu->addSeparator();
+    auto *prefAct = new QAction("⚙  Préférences…\tCtrl+,", this);
+    prefAct->setShortcut(QKeySequence("Ctrl+,"));
+    connect(prefAct, &QAction::triggered, this, &MainWindow::onOpenPreferences);
+    fileMenu->addAction(prefAct);
     fileMenu->addSeparator();
     auto *quitAct = new QAction("&Quitter", this);
     quitAct->setShortcut(QKeySequence::Quit);
@@ -256,6 +272,15 @@ void MainWindow::connectSignals()
     connect(m_audioDecoder, &AudioDecoder::loadFinished,
             this, &MainWindow::onLoadFinished);
 
+    // Y-zoom changes \u2192 update status bar
+    connect(m_spectrogramWidget, &SpectrogramWidget::yZoomChanged,
+            this, [this](float zoom, float /*pan*/){
+                if (zoom > 1.f)
+                    statusBar()->showMessage(
+                        QString("Zoom Y \u00d7%1  \u2014  molette pour zoomer, Shift+glisser pour d\u00e9placer, \u229a pour r\u00e9initialiser")
+                        .arg(zoom, 0, 'f', 1));
+            });
+
     // Thumbnails arrive from background thread → queued connection (auto-default)
     connect(m_videoDecoder, &VideoDecoder::thumbnailsReady,
             this, &MainWindow::onThumbnailsReady, Qt::QueuedConnection);
@@ -267,57 +292,20 @@ void MainWindow::connectSignals()
 
 void MainWindow::onLoadFile()
 {
+    AppPrefs prefs = AppPrefs::load();
+    QString startDir = prefs.rememberLastDir
+                     ? prefs.lastOpenDir
+                     : QString();
+
     QString path = QFileDialog::getOpenFileName(
         this,
         "Ouvrir un fichier audio / vidéo",
-        {},
+        startDir,
         "Audio/Vidéo (*.wav *.aif *.aiff *.flac *.ogg *.mp3 *.mp4 *.m4a *.aac *.mov *.mkv *.avi *.webm);;"
         "Tous les fichiers (*)");
-    if (path.isEmpty()) return;
 
-    m_player->stop();
-    m_spectrogramWidget->clear();
-    m_videoPlayer->clear();
-    m_videoPlayer->hide();
-    m_videoDecoder->clear();
-    m_progress->setValue(0);
-    m_progress->show();
-
-    QString name = QFileInfo(path).fileName();
-    m_lblFile->setText(name);
-    statusBar()->showMessage("Décodage en cours…");
-
-    // ── Try to open video stream with OpenCV ───────────────────────────────
-    bool hasVideo = m_videoDecoder->loadFile(path);
-    if (hasVideo)
-    {
-        // Show video player and set decoder
-        m_videoPlayer->setVideoDecoder(m_videoDecoder);
-        m_videoPlayer->setInfoText(name);
-        m_videoPlayer->show();
-
-        // Fetch first frame immediately so the player isn't blank
-        m_videoPlayer->setPosition(0.0);
-
-        // Start thumbnail generation in the background
-        // Aim for ~1 thumb per 5 s, capped at 120
-        int thumbCount = std::max(4, std::min(120, int(m_videoDecoder->duration() / 5.0) + 1));
-        m_videoDecoder->generateThumbnailsAsync(thumbCount, SpectrogramWidget::THUMB_H);
-
-        statusBar()->showMessage(QString("Vidéo détectée (%1 × %2, %.1f fps) — génération des vignettes…")
-            .arg(m_videoDecoder->frameWidth())
-            .arg(m_videoDecoder->frameHeight())
-            .arg(m_videoDecoder->fps()));
-    }
-    else
-    {
-        m_videoPlayer->hide();
-    }
-
-    // ── Decode audio in background ─────────────────────────────────────────
-    QtConcurrent::run([this, path]() {
-        m_audioDecoder->loadFile(path);
-    });
+    if (!path.isEmpty())
+        loadFile(path);
 }
 
 void MainWindow::onLoadProgress(int pct) { m_progress->setValue(pct); }
@@ -475,6 +463,149 @@ void MainWindow::updateModeButtons()
         ? segBtnStyle(m_spectrogramWidget->logFrequency(), "#a0a0ff")
         : "QPushButton{background:#14141c;border:1px solid #28283a;"
           "border-radius:5px;color:#333340;padding:3px 8px;font-size:12px;}");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Public: load file (used by CLI argument)
+// ════════════════════════════════════════════════════════════════════════════
+
+void MainWindow::loadFile(const QString &path)
+{
+    if (path.isEmpty()) return;
+
+    m_player->stop();
+    m_spectrogramWidget->clear();
+    m_videoPlayer->clear();
+    m_videoPlayer->hide();
+    m_videoDecoder->clear();
+    m_progress->setValue(0);
+    m_progress->show();
+
+    QString name = QFileInfo(path).fileName();
+    m_lblFile->setText(name);
+    statusBar()->showMessage(QString("Chargement de %1…").arg(name));
+
+    // Remember directory in prefs
+    AppPrefs prefs = AppPrefs::load();
+    if (prefs.rememberLastDir)
+    {
+        prefs.lastOpenDir = QFileInfo(path).absolutePath();
+        prefs.save();
+    }
+
+    bool hasVideo = m_videoDecoder->loadFile(path);
+    if (hasVideo)
+    {
+        m_videoPlayer->setVideoDecoder(m_videoDecoder);
+        m_videoPlayer->setInfoText(name);
+        m_videoPlayer->show();
+        m_videoPlayer->setPosition(0.0);
+
+        AppPrefs p = AppPrefs::load();
+        int thumbCount = std::max(4, std::min(p.thumbCount,
+            int(m_videoDecoder->duration() / 5.0) + 1));
+        m_videoDecoder->generateThumbnailsAsync(thumbCount, p.thumbHeight);
+
+        statusBar()->showMessage(
+            QString("Vidéo détectée (%1×%2, %3 fps) — génération des vignettes…")
+                .arg(m_videoDecoder->frameWidth())
+                .arg(m_videoDecoder->frameHeight())
+                .arg(m_videoDecoder->fps(), 0, 'f', 1));
+    }
+    else
+    {
+        m_videoPlayer->hide();
+    }
+
+    QtConcurrent::run([this, path]() {
+        m_audioDecoder->loadFile(path);
+    });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Keyboard navigation
+// ════════════════════════════════════════════════════════════════════════════
+
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (!m_audioDecoder->isLoaded())
+    {
+        QMainWindow::keyPressEvent(event);
+        return;
+    }
+
+    switch (event->key())
+    {
+    case Qt::Key_Left:
+        seekBy(-(AppPrefs::load().arrowStepSec));
+        break;
+
+    case Qt::Key_Right:
+        seekBy(+(AppPrefs::load().arrowStepSec));
+        break;
+
+    case Qt::Key_Space:
+        if (m_player->isPlaying()) onPause();
+        else                       onPlay();
+        break;
+
+    case Qt::Key_Escape:
+        onStop();
+        break;
+
+    default:
+        QMainWindow::keyPressEvent(event);
+        break;
+    }
+}
+
+void MainWindow::seekBy(double deltaSec)
+{
+    if (!m_audioDecoder->isLoaded()) return;
+
+    double newPos = m_player->currentPositionSeconds() + deltaSec;
+    double dur    = m_audioDecoder->duration();
+    AppPrefs p    = AppPrefs::load();
+
+    if (p.arrowLoops)
+        newPos = std::fmod(newPos + dur, dur);
+    else
+        newPos = std::clamp(newPos, 0.0, dur);
+
+    m_player->seek(newPos);
+    m_spectrogramWidget->setPlaybackPosition(newPos);
+    updateVideoFrame(newPos);
+    m_lblTime->setText(formatTime(newPos) + " / " + formatTime(dur));
+
+    // Status bar hint
+    statusBar()->showMessage(
+        QString("Position : %1  (← → : %2 s par pas)")
+            .arg(formatTime(newPos))
+            .arg(p.arrowStepSec, 0, 'f', 1), 2000);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Preferences
+// ════════════════════════════════════════════════════════════════════════════
+
+void MainWindow::onOpenPreferences()
+{
+    PreferencesDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted)
+        applyPreferences();
+}
+
+void MainWindow::applyPreferences()
+{
+    AppPrefs p = AppPrefs::load();
+
+    // Volume (simple linear scale)
+    // AudioPlayer doesn't yet have volume, but we store it for future use.
+    // statusBar hint
+    statusBar()->showMessage(
+        QString("Préférences appliquées — pas flèche: %1 s  |  vignettes: %2")
+            .arg(p.arrowStepSec, 0, 'f', 1)
+            .arg(p.thumbCount), 3000);
 }
 
 QString MainWindow::formatTime(double seconds) const
